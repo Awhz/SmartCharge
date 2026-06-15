@@ -55,6 +55,12 @@ function App() {
 
   const [logs, setLogs] = useState([]);
 
+  // Pull to refresh states
+  const [startY, setStartY] = useState(null);
+  const [pullDistance, setPullDistance] = useState(0);
+  const [isPulling, setIsPulling] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
   // Login form states
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -296,6 +302,55 @@ function App() {
     return 'Arrêtée';
   };
 
+  const handleTouchStart = (e) => {
+    const scrollTop = e.currentTarget.scrollTop;
+    if (scrollTop === 0) {
+      setStartY(e.touches[0].clientY);
+      setIsPulling(true);
+    }
+  };
+
+  const handleTouchMove = (e) => {
+    if (startY === null) return;
+    const currentY = e.touches[0].clientY;
+    const diff = currentY - startY;
+
+    if (diff > 0) {
+      // Résistance élastique
+      const dist = Math.min(diff * 0.4, 80);
+      setPullDistance(dist);
+      
+      // Empêcher le rebond natif d'iOS
+      if (e.cancelable) {
+        e.preventDefault();
+      }
+    }
+  };
+
+  const handleTouchEnd = async (e) => {
+    if (startY === null) return;
+    
+    if (pullDistance > 60 && !isRefreshing) {
+      setIsRefreshing(true);
+      setPullDistance(50); // Garder visible à 50px pendant le chargement
+      
+      try {
+        await fetchStatus();
+        await fetchScheduleAndLogs();
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setIsRefreshing(false);
+        setPullDistance(0);
+        setIsPulling(false);
+      }
+    } else {
+      setPullDistance(0);
+      setIsPulling(false);
+    }
+    setStartY(null);
+  };
+
   const isCharging = batteryStatus.chargingStatus === 1.0;
   const isPlugged = batteryStatus.plugStatus === 1;
 
@@ -309,7 +364,39 @@ function App() {
   }
 
   return (
-    <div className="app-container">
+    <div 
+      className="app-container"
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
+    >
+      {/* Pull to Refresh Indicator */}
+      {(pullDistance > 0 || isRefreshing) && (
+        <div 
+          className="pull-to-refresh-indicator" 
+          style={{ 
+            height: `${pullDistance}px`, 
+            opacity: pullDistance > 10 ? 1 : 0,
+            transition: isPulling ? 'none' : 'height 0.3s ease, opacity 0.3s ease'
+          }}
+        >
+          <RefreshCw 
+            size={14} 
+            className={isRefreshing ? 'spinning' : ''} 
+            style={{ 
+              transform: isRefreshing ? 'none' : `rotate(${pullDistance * 5}deg)`
+            }} 
+          />
+          <span>
+            {isRefreshing 
+              ? 'Mise à jour en cours...' 
+              : pullDistance > 60 
+                ? 'Relâcher pour rafraîchir' 
+                : 'Tirer pour rafraîchir'}
+          </span>
+        </div>
+      )}
+
       {/* HEADER */}
       <header className="app-header">
         <div className="logo-section">

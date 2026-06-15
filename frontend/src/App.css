@@ -797,3 +797,34 @@ input:checked + .switch-slider:before {
 .info-value {
   font-weight: 600;
 }
+
+/* Pull to Refresh Indicator styling */
+.pull-to-refresh-indicator {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  overflow: hidden;
+  background: rgba(18, 20, 32, 0.4);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  font-size: 11px;
+  color: var(--text-secondary);
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.pull-to-refresh-indicator svg {
+  color: var(--ios-blue);
+}
+
+.pull-to-refresh-indicator svg.spinning {
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
