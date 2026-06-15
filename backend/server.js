@@ -528,6 +528,18 @@ setInterval(async () => {
   }
 }, 10000); // Exécuter la boucle toutes les 10 secondes
 
+// Servir les fichiers statiques du frontend en production
+const frontendPath = path.join(__dirname, '../frontend/dist');
+app.use(express.static(frontendPath));
+
+// Pour toute autre route, renvoyer l'index.html du frontend
+app.get('*', (req, res, next) => {
+  if (req.path.startsWith('/api')) {
+    return next();
+  }
+  res.sendFile(path.join(frontendPath, 'index.html'));
+});
+
 app.listen(PORT, () => {
   console.log(`Serveur SmartCharge démarré sur http://localhost:${PORT}`);
 });
