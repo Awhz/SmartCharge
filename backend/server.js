@@ -19,19 +19,31 @@ const app = express();
 const PORT = process.env.PORT || 3001;
 
 app.disable('x-powered-by');
+app.set('trust proxy', 1);
 
 const allowedOrigins = (process.env.FRONTEND_ORIGIN || 'http://localhost:3000,http://127.0.0.1:3000')
   .split(',')
   .map(origin => origin.trim())
   .filter(Boolean);
 
-app.use(cors({
-  origin(origin, callback) {
-    if (!origin || allowedOrigins.includes(origin)) {
-      return callback(null, true);
-    }
-    return callback(new Error('Origine non autorisee par CORS.'));
+function isAllowedOrigin(origin, req) {
+  if (!origin || allowedOrigins.includes(origin)) {
+    return true;
   }
+
+  try {
+    return new URL(origin).host === req.get('host');
+  } catch {
+    return false;
+  }
+}
+
+app.use(cors((req, callback) => {
+  const origin = req.get('origin');
+
+  callback(null, {
+    origin: isAllowedOrigin(origin, req) ? origin || true : false
+  });
 }));
 app.use(express.json({ limit: '16kb' }));
 
@@ -44,7 +56,7 @@ app.use('/api', (req, res, next) => {
   const unsafeMethod = !['GET', 'HEAD', 'OPTIONS'].includes(req.method);
   const origin = req.get('origin');
 
-  if (unsafeMethod && origin && !allowedOrigins.includes(origin)) {
+  if (unsafeMethod && !isAllowedOrigin(origin, req)) {
     return res.status(403).json({ error: 'Origine non autorisee.' });
   }
 
@@ -618,6 +630,10 @@ setInterval(async () => {
 // Servir les fichiers statiques du frontend en production
 const frontendPath = path.join(__dirname, '../frontend/dist');
 app.use(express.static(frontendPath));
+
+app.get('/assets/*', (req, res) => {
+  res.status(404).type('text/plain').send('Asset introuvable. Verifiez que le build frontend a ete execute.');
+});
 
 // Pour toute autre route, renvoyer l'index.html du frontend
 app.get('*', (req, res, next) => {
