@@ -27,10 +27,6 @@ function App() {
     isLoggedIn: false,
     email: '',
     vin: '',
-    accountId: '',
-    personId: '',
-    gigyaJwt: '',
-    jwtExpiration: 0,
     isDemoMode: true
   });
 
@@ -193,10 +189,6 @@ function App() {
         isLoggedIn: false,
         email: '',
         vin: '',
-        accountId: '',
-        personId: '',
-        gigyaJwt: '',
-        jwtExpiration: 0,
         isDemoMode: true
       });
       // Réinitialiser les champs de saisie
@@ -487,7 +479,7 @@ function App() {
             {/* WIDGET BATTERIE */}
             <div className="glass-card battery-section">
               <div className="battery-circle-container">
-                <svg className={`circular-progress ${isCharging ? 'charging' : batteryStatus.batteryLevel < 20 ? 'low' : 'idle'}`} width="200" height="200">
+                <svg className={`circular-progress ${isCharging ? 'charging' : batteryStatus.batteryLevel < 20 ? 'low' : 'idle'}`} width="200" height="200" viewBox="0 0 200 200" aria-hidden="true">
                   <circle className="bg" cx="100" cy="100" r={circleRadius} />
                   <circle 
                     className="fg" 

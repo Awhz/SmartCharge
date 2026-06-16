@@ -18,8 +18,38 @@ const dbPath = path.join(__dirname, 'db.json');
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-app.use(cors());
-app.use(express.json());
+app.disable('x-powered-by');
+
+const allowedOrigins = (process.env.FRONTEND_ORIGIN || 'http://localhost:3000,http://127.0.0.1:3000')
+  .split(',')
+  .map(origin => origin.trim())
+  .filter(Boolean);
+
+app.use(cors({
+  origin(origin, callback) {
+    if (!origin || allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+    return callback(new Error('Origine non autorisee par CORS.'));
+  }
+}));
+app.use(express.json({ limit: '16kb' }));
+
+app.use('/api', (req, res, next) => {
+  res.setHeader('Cache-Control', 'no-store');
+  next();
+});
+
+app.use('/api', (req, res, next) => {
+  const unsafeMethod = !['GET', 'HEAD', 'OPTIONS'].includes(req.method);
+  const origin = req.get('origin');
+
+  if (unsafeMethod && origin && !allowedOrigins.includes(origin)) {
+    return res.status(403).json({ error: 'Origine non autorisee.' });
+  }
+
+  next();
+});
 
 // Stockage du mot de passe en mémoire pour le re-login silencieux
 let cachedPassword = '';
@@ -27,6 +57,51 @@ let lastRealCheckTime = 0;
 const REAL_CHECK_INTERVAL = 2 * 60 * 1000; // 2 minutes
 
 // Helpers pour lire/écrire db.json
+function getPublicSession(session = {}) {
+  return {
+    isLoggedIn: !!session.isLoggedIn,
+    email: session.email || '',
+    vin: session.vin || '',
+    isDemoMode: session.isDemoMode !== false
+  };
+}
+
+function isValidTime(value) {
+  return typeof value === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(value);
+}
+
+function normalizeScheduleUpdate(currentSchedule, updates) {
+  const nextSchedule = { ...currentSchedule };
+
+  if (updates.enabled !== undefined) {
+    nextSchedule.enabled = !!updates.enabled;
+  }
+
+  if (updates.startTime !== undefined) {
+    if (!isValidTime(updates.startTime)) {
+      throw new Error('Heure de debut invalide.');
+    }
+    nextSchedule.startTime = updates.startTime;
+  }
+
+  if (updates.endTime !== undefined) {
+    if (!isValidTime(updates.endTime)) {
+      throw new Error('Heure de fin invalide.');
+    }
+    nextSchedule.endTime = updates.endTime;
+  }
+
+  if (updates.targetSoc !== undefined) {
+    const targetSoc = Number(updates.targetSoc);
+    if (!Number.isFinite(targetSoc) || targetSoc < 50 || targetSoc > 100) {
+      throw new Error('La cible de charge doit etre comprise entre 50 et 100%.');
+    }
+    nextSchedule.targetSoc = Math.round(targetSoc);
+  }
+
+  return nextSchedule;
+}
+
 async function readDb() {
   try {
     const data = await fs.readFile(dbPath, 'utf8');
@@ -86,7 +161,7 @@ function isTimeInWindow(nowStr, startStr, endStr) {
 
 // Authentification
 app.post('/api/auth/login', async (req, res) => {
-  const { email, password, isDemoMode } = req.body;
+  const { email, password, isDemoMode } = req.body || {};
 
   try {
     const db = await readDb();
@@ -105,7 +180,7 @@ app.post('/api/auth/login', async (req, res) => {
       cachedPassword = '';
       await addLog(db, 'info', 'Connexion en Mode Démo réussie.');
       await writeDb(db);
-      return res.json({ success: true, session: db.session });
+      return res.json({ success: true, session: getPublicSession(db.session) });
     }
 
     if (!email || !password) {
@@ -143,7 +218,7 @@ app.post('/api/auth/login', async (req, res) => {
 
     await addLog(db, 'info', `Connexion réussie pour le véhicule VIN: ${myCar.vin}`);
     await writeDb(db);
-    res.json({ success: true, session: db.session });
+    res.json({ success: true, session: getPublicSession(db.session) });
 
   } catch (error) {
     res.status(401).json({ error: error.message });
@@ -179,11 +254,11 @@ app.get('/api/vehicle/status', async (req, res) => {
     const db = await readDb();
 
     if (!db.session.isLoggedIn) {
-      return res.json({ session: db.session, batteryStatus: db.simulation });
+      return res.json({ session: getPublicSession(db.session), batteryStatus: db.simulation });
     }
 
     if (db.session.isDemoMode) {
-      return res.json({ session: db.session, batteryStatus: db.simulation });
+      return res.json({ session: getPublicSession(db.session), batteryStatus: db.simulation });
     }
 
     // Mode Réel
@@ -193,7 +268,7 @@ app.get('/api/vehicle/status', async (req, res) => {
         await addLog(db, 'info', 'Jeton d\'accès expiré et mot de passe absent en mémoire. Déconnexion automatique.');
         db.session.isLoggedIn = false;
         await writeDb(db);
-        return res.json({ session: db.session, batteryStatus: db.simulation });
+        return res.json({ session: getPublicSession(db.session), batteryStatus: db.simulation });
       }
 
       try {
@@ -228,19 +303,19 @@ app.get('/api/vehicle/status', async (req, res) => {
     };
     
     await writeDb(db);
-    res.json({ session: db.session, batteryStatus: db.simulation });
+    res.json({ session: getPublicSession(db.session), batteryStatus: db.simulation });
 
   } catch (error) {
     console.error('Erreur get vehicle status:', error.message);
     // En cas de panne de l'API Renault, on renvoie les dernières données en cache
     const db = await readDb();
-    res.json({ session: db.session, batteryStatus: db.simulation, warning: 'API Renault injoignable, affichage des données en cache.' });
+    res.json({ session: getPublicSession(db.session), batteryStatus: db.simulation, warning: 'API Renault injoignable, affichage des données en cache.' });
   }
 });
 
 // Contrôle manuel (Démarrer / Arrêter la charge)
 app.post('/api/vehicle/command', async (req, res) => {
-  const { action } = req.body; // 'start' ou 'stop'
+  const { action } = req.body || {}; // 'start' ou 'stop'
 
   if (action !== 'start' && action !== 'stop') {
     return res.status(400).json({ error: "L'action doit être 'start' ou 'stop'." });
@@ -293,17 +368,9 @@ app.get('/api/schedule', async (req, res) => {
 });
 
 app.post('/api/schedule', async (req, res) => {
-  const { enabled, startTime, endTime, targetSoc } = req.body;
-
   try {
     const db = await readDb();
-    
-    db.schedule = {
-      enabled: enabled !== undefined ? !!enabled : db.schedule.enabled,
-      startTime: startTime || db.schedule.startTime,
-      endTime: endTime || db.schedule.endTime,
-      targetSoc: targetSoc !== undefined ? Number(targetSoc) : db.schedule.targetSoc
-    };
+    db.schedule = normalizeScheduleUpdate(db.schedule, req.body || {});
 
     await addLog(
       db, 
@@ -313,7 +380,7 @@ app.post('/api/schedule', async (req, res) => {
     await writeDb(db);
     res.json({ success: true, schedule: db.schedule });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    res.status(400).json({ error: error.message });
   }
 });
 
@@ -327,12 +394,32 @@ app.get('/api/logs', async (req, res) => {
 app.post('/api/simulation/update', async (req, res) => {
   try {
     const db = await readDb();
-    const { batteryLevel, plugStatus, chargingStatus, chargingRateKw } = req.body;
+    const { batteryLevel, plugStatus, chargingStatus, chargingRateKw } = req.body || {};
 
-    if (batteryLevel !== undefined) db.simulation.batteryLevel = Math.max(0, Math.min(100, Number(batteryLevel)));
-    if (plugStatus !== undefined) db.simulation.plugStatus = Number(plugStatus);
-    if (chargingStatus !== undefined) db.simulation.chargingStatus = Number(chargingStatus);
-    if (chargingRateKw !== undefined) db.simulation.chargingRateKw = Number(chargingRateKw);
+    if (!db.session.isDemoMode) {
+      return res.status(403).json({ error: 'La simulation est disponible uniquement en Mode Demo.' });
+    }
+
+    if (batteryLevel !== undefined) {
+      const nextBatteryLevel = Number(batteryLevel);
+      if (!Number.isFinite(nextBatteryLevel)) return res.status(400).json({ error: 'Niveau de batterie invalide.' });
+      db.simulation.batteryLevel = Math.max(0, Math.min(100, nextBatteryLevel));
+    }
+    if (plugStatus !== undefined) {
+      const nextPlugStatus = Number(plugStatus);
+      if (![0, 1].includes(nextPlugStatus)) return res.status(400).json({ error: 'Statut de prise invalide.' });
+      db.simulation.plugStatus = nextPlugStatus;
+    }
+    if (chargingStatus !== undefined) {
+      const nextChargingStatus = Number(chargingStatus);
+      if (![-1, 0, 0.1, 0.2, 0.3, 0.4, 1].includes(nextChargingStatus)) return res.status(400).json({ error: 'Statut de charge invalide.' });
+      db.simulation.chargingStatus = nextChargingStatus;
+    }
+    if (chargingRateKw !== undefined) {
+      const nextChargingRateKw = Number(chargingRateKw);
+      if (![3.7, 7.4, 22].includes(nextChargingRateKw)) return res.status(400).json({ error: 'Puissance de charge invalide.' });
+      db.simulation.chargingRateKw = nextChargingRateKw;
+    }
 
     db.simulation.batteryAutonomy = Math.round(db.simulation.batteryLevel * 3.2);
     

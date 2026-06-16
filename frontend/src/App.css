@@ -37,10 +37,9 @@ body {
   overflow-x: hidden;
 }
 
-/* App Container looking like an iPhone on desktop but responsive */
+/* App Container keeps the mobile app feel on phones and becomes full-screen on desktop. */
 .app-container {
   width: 100%;
-  max-width: 440px;
   height: 100vh;
   min-height: 700px;
   background: radial-gradient(circle at top, #141b2d 0%, var(--bg-primary) 80%);
@@ -51,15 +50,6 @@ body {
   box-shadow: 0 24px 50px rgba(0, 0, 0, 0.6);
   border-right: 1px solid rgba(255, 255, 255, 0.03);
   border-left: 1px solid rgba(255, 255, 255, 0.03);
-}
-
-@media (min-width: 441px) {
-  .app-container {
-    height: 92vh;
-    border-radius: 40px;
-    border: 8px solid #1c1c1e;
-    margin: 4vh 0;
-  }
 }
 
 /* Header & Status Area */
@@ -166,6 +156,10 @@ body {
 
 .circular-progress {
   transform: rotate(-90deg);
+  transform-origin: center;
+  transform-box: fill-box;
+  display: block;
+  flex-shrink: 0;
 }
 
 .circular-progress circle {
@@ -196,10 +190,13 @@ body {
 
 .battery-info {
   position: absolute;
+  inset: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
+  text-align: center;
+  pointer-events: none;
 }
 
 .battery-percentage {
@@ -827,4 +824,87 @@ input:checked + .switch-slider:before {
 @keyframes spin {
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
+}
+
+@media (max-width: 440px) {
+  .app-container {
+    max-width: 440px;
+  }
+}
+
+@media (min-width: 900px) {
+  body {
+    align-items: stretch;
+  }
+
+  .app-container {
+    min-height: 100vh;
+    box-shadow: none;
+    border: none;
+  }
+
+  .app-header {
+    padding: 24px clamp(28px, 5vw, 72px) 18px;
+  }
+
+  .app-content {
+    width: 100%;
+    max-width: 1280px;
+    margin: 0 auto;
+    padding: 28px clamp(28px, 5vw, 72px) 48px;
+    display: grid;
+    grid-template-columns: minmax(360px, 1.05fr) minmax(420px, 1fr);
+    grid-auto-flow: dense;
+    align-items: start;
+  }
+
+  .login-screen {
+    grid-column: 1 / -1;
+    min-height: calc(100vh - 120px);
+  }
+
+  .battery-section {
+    grid-row: span 3;
+    min-height: 100%;
+    justify-content: center;
+    padding: 36px 28px;
+  }
+
+  .battery-circle-container {
+    width: min(34vw, 320px);
+    height: min(34vw, 320px);
+  }
+
+  .circular-progress {
+    width: 100%;
+    height: 100%;
+  }
+
+  .battery-percentage {
+    font-size: clamp(64px, 7vw, 92px);
+  }
+
+  .battery-percentage span {
+    font-size: clamp(24px, 2.2vw, 34px);
+  }
+
+  .stats-grid {
+    max-width: 640px;
+    margin-inline: auto;
+  }
+
+  .manual-control-card,
+  .smart-charge-card,
+  .logs-card,
+  .vehicle-info-card {
+    border-radius: 18px;
+  }
+
+  .logs-card {
+    max-height: 360px;
+  }
+
+  .logs-container {
+    max-height: 276px;
+  }
 }

@@ -1,9 +1,14 @@
 import axios from 'axios';
+import 'dotenv/config';
 
-const GIGYA_API_KEY = '3_VgdkgtIRH3AdHvJm-cjV2ug2EFE0lxt0IJzMC4MFqZjFpn_GYFXVdNZ19L7wZX0N';
-const KAMEREON_API_KEY = 'YjkKtHmGfaceeuExUDKGxrLZGGvtVS0J';
-const GIGYA_URL = 'https://accounts.eu1.gigya.com';
-const KAMEREON_URL = 'https://api-wired-prod-1-euw1.wrd-aws.com/commerce/v1';
+const GIGYA_API_KEY = process.env.GIGYA_API_KEY || '3_VgdkgtIRH3AdHvJm-cjV2ug2EFE0lxt0IJzMC4MFqZjFpn_GYFXVdNZ19L7wZX0N';
+const KAMEREON_API_KEY = process.env.KAMEREON_API_KEY || 'YjkKtHmGfaceeuExUDKGxrLZGGvtVS0J';
+const GIGYA_URL = process.env.GIGYA_URL || 'https://accounts.eu1.gigya.com';
+const KAMEREON_URL = process.env.KAMEREON_URL || 'https://api-wired-prod-1-euw1.wrd-aws.com/commerce/v1';
+
+const renaultApi = axios.create({
+  timeout: Number(process.env.RENAULT_API_TIMEOUT_MS || 12000)
+});
 
 /**
  * S'authentifie auprès de Gigya (SAP Customer Data Cloud) pour Renault.
@@ -14,7 +19,7 @@ const KAMEREON_URL = 'https://api-wired-prod-1-euw1.wrd-aws.com/commerce/v1';
 export async function loginToGigya(email, password) {
   try {
     // Étape 1 : Connexion utilisateur
-    const loginResponse = await axios.post(`${GIGYA_URL}/accounts.login`, null, {
+    const loginResponse = await renaultApi.post(`${GIGYA_URL}/accounts.login`, null, {
       params: {
         apiKey: GIGYA_API_KEY,
         loginID: email,
@@ -29,7 +34,7 @@ export async function loginToGigya(email, password) {
     const cookieValue = loginResponse.data.sessionInfo.cookieValue;
 
     // Étape 2 : Récupérer les informations de compte pour obtenir le personId
-    const accountInfoResponse = await axios.post(`${GIGYA_URL}/accounts.getAccountInfo`, null, {
+    const accountInfoResponse = await renaultApi.post(`${GIGYA_URL}/accounts.getAccountInfo`, null, {
       params: {
         apiKey: GIGYA_API_KEY,
         login_token: cookieValue
@@ -46,7 +51,7 @@ export async function loginToGigya(email, password) {
     }
 
     // Étape 3 : Récupérer le jeton JWT OIDC pour Kamereon
-    const jwtResponse = await axios.post(`${GIGYA_URL}/accounts.getJWT`, null, {
+    const jwtResponse = await renaultApi.post(`${GIGYA_URL}/accounts.getJWT`, null, {
       params: {
         apiKey: GIGYA_API_KEY,
         login_token: cookieValue,
@@ -80,7 +85,7 @@ export async function loginToGigya(email, password) {
  */
 export async function getKamereonAccountId(jwtToken, personId) {
   try {
-    const response = await axios.get(`${KAMEREON_URL}/persons/${personId}`, {
+    const response = await renaultApi.get(`${KAMEREON_URL}/persons/${personId}`, {
       params: {
         country: 'FR'
       },
@@ -112,7 +117,7 @@ export async function getKamereonAccountId(jwtToken, personId) {
  */
 export async function getVehiclesList(jwtToken, accountId) {
   try {
-    const response = await axios.get(`${KAMEREON_URL}/accounts/${accountId}/vehicles`, {
+    const response = await renaultApi.get(`${KAMEREON_URL}/accounts/${accountId}/vehicles`, {
       params: {
         country: 'FR'
       },
@@ -139,7 +144,7 @@ export async function getVehiclesList(jwtToken, accountId) {
  */
 export async function getBatteryStatus(jwtToken, accountId, vin) {
   try {
-    const response = await axios.get(`${KAMEREON_URL}/accounts/${accountId}/kamereon/kca/car-adapter/v2/cars/${vin}/battery-status`, {
+    const response = await renaultApi.get(`${KAMEREON_URL}/accounts/${accountId}/kamereon/kca/car-adapter/v2/cars/${vin}/battery-status`, {
       params: {
         country: 'FR'
       },
@@ -167,7 +172,7 @@ export async function getBatteryStatus(jwtToken, accountId, vin) {
  */
 export async function setChargingAction(jwtToken, accountId, vin, action) {
   try {
-    const response = await axios.post(
+    const response = await renaultApi.post(
       `${KAMEREON_URL}/accounts/${accountId}/kamereon/kca/car-adapter/v1/cars/${vin}/actions/charging-start`,
       {
         data: {
