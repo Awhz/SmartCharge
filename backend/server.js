@@ -8,7 +8,8 @@ import {
   getKamereonAccountId,
   getVehiclesList,
   getBatteryStatus,
-  setChargingAction
+  setChargingAction,
+  getVehicleLocation
 } from './renaultService.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -117,13 +118,18 @@ function normalizeScheduleUpdate(currentSchedule, updates) {
 async function readDb() {
   try {
     const data = await fs.readFile(dbPath, 'utf8');
-    return JSON.parse(data);
+    const parsed = JSON.parse(data);
+    if (!parsed.location) {
+      parsed.location = { gpsLatitude: 48.8566, gpsLongitude: 2.3522, lastUpdated: new Date().toISOString() };
+    }
+    return parsed;
   } catch (error) {
     console.error('Erreur de lecture de db.json, réinitialisation...', error);
     const initialDb = {
       session: { isLoggedIn: false, email: '', vin: '', accountId: '', personId: '', gigyaJwt: '', jwtExpiration: 0, isDemoMode: true },
       schedule: { enabled: false, startTime: '22:00', endTime: '06:00', targetSoc: 80 },
       simulation: { batteryLevel: 52, batteryAutonomy: 165, plugStatus: 1, chargingStatus: 0.0, chargingRemainingTime: null, chargingInstantaneousPower: 0.0, batteryTemperature: 20, batteryCapacity: 52, chargingRateKw: 7.4, lastUpdated: new Date().toISOString() },
+      location: { gpsLatitude: 48.8566, gpsLongitude: 2.3522, lastUpdated: new Date().toISOString() },
       logs: []
     };
     await writeDb(initialDb);
@@ -266,11 +272,11 @@ app.get('/api/vehicle/status', async (req, res) => {
     const db = await readDb();
 
     if (!db.session.isLoggedIn) {
-      return res.json({ session: getPublicSession(db.session), batteryStatus: db.simulation });
+      return res.json({ session: getPublicSession(db.session), batteryStatus: db.simulation, location: db.location });
     }
 
     if (db.session.isDemoMode) {
-      return res.json({ session: getPublicSession(db.session), batteryStatus: db.simulation });
+      return res.json({ session: getPublicSession(db.session), batteryStatus: db.simulation, location: db.location });
     }
 
     // Mode Réel
@@ -314,14 +320,28 @@ app.get('/api/vehicle/status', async (req, res) => {
       lastUpdated: new Date().toISOString()
     };
     
+    // Récupérer la dernière position GPS connue (sans bloquer le statut batterie en cas d'échec)
+    try {
+      const locationData = await getVehicleLocation(db.session.gigyaJwt, db.session.accountId, db.session.vin);
+      if (locationData && locationData.gpsLatitude != null && locationData.gpsLongitude != null) {
+        db.location = {
+          gpsLatitude: locationData.gpsLatitude,
+          gpsLongitude: locationData.gpsLongitude,
+          lastUpdated: locationData.lastUpdateTime || new Date().toISOString()
+        };
+      }
+    } catch (locationError) {
+      console.error('Erreur récupération position:', locationError.message);
+    }
+
     await writeDb(db);
-    res.json({ session: getPublicSession(db.session), batteryStatus: db.simulation });
+    res.json({ session: getPublicSession(db.session), batteryStatus: db.simulation, location: db.location });
 
   } catch (error) {
     console.error('Erreur get vehicle status:', error.message);
     // En cas de panne de l'API Renault, on renvoie les dernières données en cache
     const db = await readDb();
-    res.json({ session: getPublicSession(db.session), batteryStatus: db.simulation, warning: 'API Renault injoignable, affichage des données en cache.' });
+    res.json({ session: getPublicSession(db.session), batteryStatus: db.simulation, location: db.location, warning: 'API Renault injoignable, affichage des données en cache.' });
   }
 });
 

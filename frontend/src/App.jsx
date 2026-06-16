@@ -18,7 +18,9 @@ import {
   Sliders,
   AlertTriangle,
   RefreshCw,
-  Gauge
+  Gauge,
+  MapPin,
+  Navigation
 } from 'lucide-react';
 
 function App() {
@@ -50,6 +52,9 @@ function App() {
   });
 
   const [logs, setLogs] = useState([]);
+
+  // Dernière position GPS connue du véhicule
+  const [location, setLocation] = useState(null);
 
   // Pull to refresh states
   const [startY, setStartY] = useState(null);
@@ -89,6 +94,9 @@ function App() {
       }
       if (data.batteryStatus) {
         setBatteryStatus(data.batteryStatus);
+      }
+      if (data.location) {
+        setLocation(data.location);
       }
       if (data.warning) {
         setWarningMessage(data.warning);
@@ -572,6 +580,53 @@ function App() {
                   </button>
                 )}
               </div>
+            </div>
+
+            {/* CARTE - DERNIERE POSITION CONNUE */}
+            <div className="glass-card map-card">
+              <div className="card-header-row">
+                <div className="card-title-group">
+                  <h3><MapPin size={16} style={{ verticalAlign: '-3px', marginRight: 4 }} />Carte</h3>
+                  <p>Dernière position connue du véhicule</p>
+                </div>
+              </div>
+
+              {location && location.gpsLatitude != null && location.gpsLongitude != null ? (
+                <>
+                  <div className="map-embed-wrapper">
+                    <iframe
+                      title="Dernière position du véhicule"
+                      className="map-iframe"
+                      loading="lazy"
+                      src={`https://www.openstreetmap.org/export/embed.html?bbox=${location.gpsLongitude - 0.01}%2C${location.gpsLatitude - 0.007}%2C${location.gpsLongitude + 0.01}%2C${location.gpsLatitude + 0.007}&layer=mapnik&marker=${location.gpsLatitude}%2C${location.gpsLongitude}`}
+                    />
+                  </div>
+
+                  <div className="map-info-row">
+                    <span className="map-coords">
+                      <Navigation size={12} /> {Number(location.gpsLatitude).toFixed(5)}, {Number(location.gpsLongitude).toFixed(5)}
+                    </span>
+                    <a
+                      className="map-open-link"
+                      href={`https://www.openstreetmap.org/?mlat=${location.gpsLatitude}&mlon=${location.gpsLongitude}#map=16/${location.gpsLatitude}/${location.gpsLongitude}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      Ouvrir la carte
+                    </a>
+                  </div>
+
+                  {location.lastUpdated && (
+                    <div className="last-updated-text" style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 10, fontStyle: 'italic', display: 'flex', alignItems: 'center', gap: 4, justifyContent: 'center', width: '100%' }}>
+                      <Clock size={11} /> Position datée du : {formatLastUpdatedTime(location.lastUpdated)}
+                    </div>
+                  )}
+                </>
+              ) : (
+                <p style={{ fontSize: 12, color: 'var(--text-secondary)', textAlign: 'center', padding: '10px 0' }}>
+                  Position du véhicule indisponible pour le moment.
+                </p>
+              )}
             </div>
 
             {/* CONFIGURATION RECHARGE INTELLIGENTE */}

@@ -908,3 +908,61 @@ input:checked + .switch-slider:before {
     max-height: 276px;
   }
 }
+
+/* ===== Carte - Dernière position ===== */
+.map-card .card-header-row {
+  margin-bottom: 16px;
+}
+
+.map-embed-wrapper {
+  position: relative;
+  width: 100%;
+  height: 200px;
+  border-radius: 16px;
+  overflow: hidden;
+  border: 1px solid var(--glass-border);
+  background: var(--ios-dark-gray);
+}
+
+.map-iframe {
+  width: 100%;
+  height: 100%;
+  border: 0;
+  display: block;
+  filter: saturate(1.05) brightness(0.95);
+}
+
+.map-info-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 14px;
+  gap: 12px;
+}
+
+.map-coords {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-family: monospace;
+  color: var(--text-secondary);
+}
+
+.map-open-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ios-blue);
+  text-decoration: none;
+  padding: 6px 14px;
+  border-radius: 20px;
+  background: rgba(10, 132, 255, 0.12);
+  transition: background 0.2s ease;
+}
+
+.map-open-link:hover {
+  background: rgba(10, 132, 255, 0.22);
+}

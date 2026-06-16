@@ -200,3 +200,30 @@ export async function setChargingAction(jwtToken, accountId, vin, action) {
     throw error;
   }
 }
+
+/**
+ * Récupère la dernière position GPS connue du véhicule.
+ * @param {string} jwtToken - Jeton JWT
+ * @param {string} accountId - Account ID
+ * @param {string} vin - VIN du véhicule
+ * @returns {Promise<{gpsLatitude: number, gpsLongitude: number, lastUpdateTime: string}>}
+ */
+export async function getVehicleLocation(jwtToken, accountId, vin) {
+  try {
+    const response = await renaultApi.get(`${KAMEREON_URL}/accounts/${accountId}/kamereon/kca/car-adapter/v1/cars/${vin}/location`, {
+      params: {
+        country: 'FR'
+      },
+      headers: {
+        'apikey': KAMEREON_API_KEY,
+        'x-gigya-id_token': jwtToken,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    return response.data?.data?.attributes;
+  } catch (error) {
+    console.error('Erreur renaultService.getVehicleLocation:', error.message);
+    throw error;
+  }
+}
